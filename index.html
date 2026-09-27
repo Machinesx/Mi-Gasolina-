@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#123c35">
+<link rel="manifest" href="./manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Mi Gasolina</title>
+<style>
+:root{--bg:#f3f6f4;--card:#fff;--ink:#17332d;--muted:#6d817a;--accent:#187a61;--line:#dce7e1;--soft:#e8f3ee;--danger:#b93e43}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{background:linear-gradient(130deg,#123c35,#187a61);color:white;padding:24px 18px 28px}header .wrap,main{max-width:1050px;margin:auto}
+h1{margin:0;font-size:clamp(1.7rem,5vw,2.4rem)}header p{margin:6px 0 0;color:#d8eee6}
+main{padding:18px 14px 40px}.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px}.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:0 3px 12px #16382b08}.span-12{grid-column:span 12}.span-8{grid-column:span 8}.span-4{grid-column:span 4}
+h2{font-size:1.12rem;margin:0 0 14px}.fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+label{display:block;font-size:.86rem;font-weight:650;margin-bottom:5px;color:#38554c}
+input,select,button{font:inherit}input,select{width:100%;min-width:0;border:1px solid #cbd9d2;border-radius:9px;padding:11px;background:#fff;color:var(--ink)}
+button{border:0;border-radius:9px;padding:11px 15px;font-weight:700;cursor:pointer}.primary{background:var(--accent);color:white}.secondary{background:var(--soft);color:var(--ink)}.danger{background:#fff0f0;color:var(--danger)}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.note{font-size:.84rem;color:var(--muted);margin:10px 0 0}.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.stat{background:#f7faf8;border:1px solid var(--line);border-radius:12px;padding:14px}.stat .label{font-size:.8rem;color:var(--muted)}.stat strong{display:block;font-size:1.35rem;margin-top:4px;overflow-wrap:anywhere}
+.filters{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;align-items:end}.hidden{display:none!important}
+.table-wrap{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:.9rem;white-space:nowrap}th,td{text-align:left;padding:11px 9px;border-bottom:1px solid var(--line)}th{color:var(--muted);font-size:.78rem;text-transform:uppercase;letter-spacing:.03em}td .mini{padding:6px 9px;font-size:.8rem;margin-right:4px}
+.empty{text-align:center;padding:25px;color:var(--muted)}canvas{width:100%;height:220px;display:block}
+footer{color:var(--muted);font-size:.8rem;text-align:center;padding:8px 14px 26px}
+@media(max-width:760px){.span-8,.span-4{grid-column:span 12}.fields{grid-template-columns:repeat(2,minmax(0,1fr))}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.filters{grid-template-columns:1fr 1fr}.filters .filter-mode{grid-column:span 2}}
+@media(max-width:430px){.fields{grid-template-columns:1fr 1fr}.card{padding:14px}.stat strong{font-size:1.15rem}}
+</style>
+</head>
+<body>
+<header><div class="wrap"><h1>⛽ Mi Gasolina</h1><p>Control sencillo de repostajes, consumo y gastos de tu vehículo.</p></div></header>
+<main>
+<div class="grid">
+<section class="card span-12">
+<h2 id="formTitle">Añadir repostaje</h2>
+<form id="refuelForm">
+<div class="fields">
+<div><label for="date">Fecha</label><input id="date" type="date" required></div>
+<div><label for="odo">Kilometraje del vehículo (km)</label><input id="odo" type="number" min="0" step="1" placeholder="Ej. 85420" required></div>
+<div><label for="paid">Importe pagado (€)</label><input id="paid" type="number" min="0.01" step="0.01" placeholder="Ej. 55,20" required></div>
+<div><label for="price">Precio por litro (€/L)</label><input id="price" type="number" min="0.001" step="0.001" placeholder="Ej. 1,589" required></div>
+</div>
+<p class="note" id="litresPreview">Introduce el importe y el precio por litro para calcular los litros.</p>
+<div class="actions"><button class="primary" type="submit" id="saveBtn">Guardar repostaje</button><button class="secondary hidden" type="button" id="cancelEdit">Cancelar edición</button></div>
+</form>
+</section>
+<section class="card span-12">
+<h2>Consultar estadísticas</h2>
+<div class="filters">
+<div class="filter-mode"><label for="period">Periodo</label><select id="period"><option value="month">Mes actual</option><option value="custom">Fechas personalizadas</option><option value="all">Todo el historial</option></select></div>
+<div id="fromWrap" class="hidden"><label for="from">Desde</label><input type="date" id="from"></div>
+<div id="toWrap" class="hidden"><label for="to">Hasta</label><input type="date" id="to"></div>
+</div>
+<p class="note">El consumo entre repostajes se estima usando la diferencia de kilómetros y los litros registrados en el repostaje posterior. Es más representativo si los repostajes son completos.</p>
+</section>
+<section class="card span-12">
+<h2>Resumen del periodo</h2>
+<div class="stats">
+<div class="stat"><span class="label">Gasto registrado</span><strong id="sSpend">0,00 €</strong></div>
+<div class="stat"><span class="label">Distancia entre registros</span><strong id="sDistance">—</strong></div>
+<div class="stat"><span class="label">Litros registrados</span><strong id="sLitres">—</strong></div>
+<div class="stat"><span class="label">Precio medio ponderado</span><strong id="sPrice">—</strong></div>
+<div class="stat"><span class="label">Consumo medio estimado</span><strong id="sConsumption">—</strong></div>
+<div class="stat"><span class="label">Coste estimado por km</span><strong id="sPerKm">—</strong></div>
+<div class="stat"><span class="label">Número de repostajes</span><strong id="sCount">0</strong></div>
+<div class="stat"><span class="label">Importe medio por repostaje</span><strong id="sAverage">—</strong></div>
+</div>
+</section>
+<section class="card span-8">
+<h2>Gasto mensual</h2><canvas id="chart" aria-label="Gráfico de gasto mensual"></canvas>
+</section>
+<section class="card span-4">
+<h2>Datos y copias de seguridad</h2>
+<p class="note">Los datos se guardan en este navegador y dispositivo. Exporta un archivo periódicamente para conservar una copia o trasladar los registros.</p>
+<div class="actions"><button class="secondary" id="exportCsv">Exportar CSV</button><button class="secondary" id="exportJson">Copia JSON</button><button class="secondary" id="importBtn">Importar JSON</button><input type="file" id="importFile" accept=".json,application/json" class="hidden"></div>
+<div class="actions"><button class="danger" id="clearData" type="button">Borrar todos los datos</button></div>
+<p class="note">Consejo: guarda una copia JSON periódicamente. Es la forma de trasladar tus datos a otro móvil o navegador sin servidor.</p>
+<p class="note" id="backupStatus"></p>
+<p class="note">Al borrar los datos del sitio o cambiar de navegador/dispositivo, los registros locales podrían desaparecer.</p>
+</section>
+<section class="card span-12">
+<h2>Historial de repostajes</h2><div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Kilómetros</th><th>Importe</th><th>€/litro</th><th>Litros</th><th>Consumo tramo*</th><th>Acciones</th></tr></thead><tbody id="history"></tbody></table></div>
+<p class="note">*El consumo del tramo se calcula con la diferencia respecto al registro anterior y los litros de este repostaje. No se calcula para el primer registro.</p>
+</section>
+</div>
+</main>
+<footer>Mi Gasolina · Los datos permanecen en el almacenamiento local de este navegador.</footer>
+<script>
+(() => {
+const $ = id => document.getElementById(id);
+const KEY = 'mi-gasolina-refuels-v1';
+let records = [];
+let editingId = null;
+const today = new Date();
+const localDate = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+$('date').value = localDate(today);
+const euro = n => Number(n).toLocaleString('es-ES',{style:'currency',currency:'EUR'});
+const num = (n,d=2) => Number(n).toLocaleString('es-ES',{minimumFractionDigits:d,maximumFractionDigits:d});
+const litres = r => r.paid / r.price;
+function load(){
+ try { const x=JSON.parse(localStorage.getItem(KEY)||'[]'); records=Array.isArray(x)?x.filter(r=>r&&r.id&&r.date&&Number.isFinite(+r.odo)&&+r.price>0&&+r.paid>0).map(r=>({...r,odo:+r.odo,paid:+r.paid,price:+r.price})):[]; }
+ catch(e){ records=[]; }
+ records.sort((a,b)=>a.date.localeCompare(b.date)||a.odo-b.odo);
+}
+function save(){ localStorage.setItem(KEY,JSON.stringify(records)); }
+function updatePreview(){
+ const p=+$('paid').value, price=+$('price').value;
+ $('litresPreview').textContent=p>0&&price>0?`Litros calculados: ${num(p/price,2)} L`:'Introduce el importe y el precio por litro para calcular los litros.';
+}
+function periodRecords(){
+ const mode=$('period').value; let from='',to='';
+ if(mode==='month'){const d=new Date();from=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`;to=localDate(d);}
+ if(mode==='custom'){from=$('from').value;to=$('to').value;}
+ return records.filter(r=>(!from||r.date>=from)&&(!to||r.date<=to));
+}
+function getConsumption(r){
+ const idx=records.findIndex(x=>x.id===r.id);
+ if(idx<=0)return null;
+ const prev=records[idx-1], distance=r.odo-prev.odo;
+ return distance>0?litres(r)/distance*100:null;
+}
+function render(){
+ const list=periodRecords();
+ const spend=list.reduce((s,r)=>s+r.paid,0), totalLitres=list.reduce((s,r)=>s+litres(r),0);
+ let distance=0,consumptionLitres=0,validDistance=0;
+ list.forEach(r=>{const idx=records.findIndex(x=>x.id===r.id);if(idx>0){const dist=r.odo-records[idx-1].odo;if(dist>0){distance+=dist;validDistance+=dist;consumptionLitres+=litres(r);}}});
+ $('sSpend').textContent=euro(spend);
+ $('sDistance').textContent=validDistance?`${num(distance,0)} km`:'—';
+ $('sLitres').textContent=list.length?`${num(totalLitres)} L`:'—';
+ $('sPrice').textContent=totalLitres?`${num(spend/totalLitres,3)} €/L`:'—';
+ $('sConsumption').textContent=validDistance?`${num(consumptionLitres/validDistance*100)} L/100 km`:'—';
+ $('sPerKm').textContent=validDistance?`${num(spend/validDistance,3)} €/km`:'—';
+ $('sCount').textContent=list.length;
+ $('sAverage').textContent=list.length?euro(spend/list.length):'—';
+ const body=$('history');body.innerHTML='';
+ const sorted=[...records].sort((a,b)=>b.date.localeCompare(a.date)||b.odo-a.odo);
+ if(!sorted.length){body.innerHTML='<tr><td colspan="7" class="empty">Todavía no hay repostajes. Añade el primero arriba.</td></tr>';}
+ sorted.forEach(r=>{
+ const tr=document.createElement('tr');
+ const c=getConsumption(r);
+ const vals=[r.date,num(r.odo,0)+' km',euro(r.paid),num(r.price,3)+' €/L',num(litres(r))+' L',c===null?'—':num(c)+' L/100 km'];
+ vals.forEach(v=>{const td=document.createElement('td');td.textContent=v;tr.appendChild(td);});
+ const td=document.createElement('td');
+ const edit=document.createElement('button');edit.className='mini secondary';edit.textContent='Editar';edit.onclick=()=>startEdit(r.id);
+ const del=document.createElement('button');del.className='mini danger';del.textContent='Eliminar';del.onclick=()=>remove(r.id);
+ td.append(edit,del);tr.appendChild(td);body.appendChild(tr);
+ });
+ drawChart();
+}
+function drawChart(){
+ const canvas=$('chart'),ctx=canvas.getContext('2d'),rect=canvas.getBoundingClientRect(),ratio=window.devicePixelRatio||1;
+ canvas.width=Math.max(280,rect.width)*ratio;canvas.height=220*ratio;ctx.scale(ratio,ratio);
+ const w=canvas.width/ratio,h=220;ctx.clearRect(0,0,w,h);
+ const sums={};records.forEach(r=>{const k=r.date.slice(0,7);sums[k]=(sums[k]||0)+r.paid;});
+ const keys=Object.keys(sums).sort().slice(-8), vals=keys.map(k=>sums[k]);
+ if(!keys.length){ctx.fillStyle='#6d817a';ctx.font='14px system-ui';ctx.textAlign='center';ctx.fillText('Añade repostajes para ver tu evolución mensual',w/2,h/2);return;}
+ const left=42,right=12,top=18,bottom=36,plotH=h-top-bottom,plotW=w-left-right,max=Math.max(...vals,10)*1.15;
+ ctx.strokeStyle='#dce7e1';ctx.fillStyle='#6d817a';ctx.font='11px system-ui';ctx.textAlign='right';
+ for(let i=0;i<=4;i++){const y=top+plotH*i/4;ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(w-right,y);ctx.stroke();ctx.fillText(num(max*(1-i/4),0)+' €',left-6,y+4);}
+ const step=plotW/keys.length,bw=Math.min(38,step*.58);
+ vals.forEach((v,i)=>{const bh=v/max*plotH,x=left+step*i+(step-bw)/2,y=top+plotH-bh;ctx.fillStyle='#187a61';ctx.fillRect(x,y,bw,bh);ctx.fillStyle='#45645a';ctx.textAlign='center';ctx.fillText(keys[i].slice(5),x+bw/2,h-15);});
+}
+function startEdit(id){
+ const r=records.find(x=>x.id===id);if(!r)return;editingId=id;
+ $('date').value=r.date;$('odo').value=r.odo;$('paid').value=r.paid;$('price').value=r.price;
+ $('formTitle').textContent='Editar repostaje';$('saveBtn').textContent='Guardar cambios';$('cancelEdit').classList.remove('hidden');updatePreview();window.scrollTo({top:0,behavior:'smooth'});
+}
+function resetForm(){editingId=null;$('refuelForm').reset();$('date').value=localDate(new Date());$('formTitle').textContent='Añadir repostaje';$('saveBtn').textContent='Guardar repostaje';$('cancelEdit').classList.add('hidden');updatePreview();}
+function remove(id){if(!confirm('¿Seguro que quieres eliminar este repostaje?'))return;records=records.filter(r=>r.id!==id);save();render();if(editingId===id)resetForm();}
+$('refuelForm').addEventListener('submit',e=>{
+ e.preventDefault();
+ const r={id:editingId||`${Date.now()}-${Math.random().toString(36).slice(2,8)}`,date:$('date').value,odo:+$('odo').value,paid:+$('paid').value,price:+$('price').value};
+ if(!r.date||!Number.isFinite(r.odo)||r.odo<0||r.paid<=0||r.price<=0){alert('Revisa los datos introducidos.');return;}
+ const old=records.find(x=>x.id===editingId);
+ if(!old&&records.some(x=>x.date===r.date&&x.odo===r.odo)){alert('Ya existe un registro con esa fecha y kilometraje.');return;}
+ if(old)records=records.map(x=>x.id===editingId?r:x);else records.push(r);
+ records.sort((a,b)=>a.date.localeCompare(b.date)||a.odo-b.odo);
+ save();resetForm();render();
+});
+$('cancelEdit').onclick=resetForm;
+['paid','price'].forEach(id=>$(id).addEventListener('input',updatePreview));
+$('period').onchange=()=>{const custom=$('period').value==='custom';$('fromWrap').classList.toggle('hidden',!custom);$('toWrap').classList.toggle('hidden',!custom);render();};
+['from','to'].forEach(id=>$(id).addEventListener('change',render));
+function download(name,text,type){const a=document.createElement('a'),url=URL.createObjectURL(new Blob([text],{type}));a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+$('exportJson').onclick=()=>download('mi-gasolina-copia.json',JSON.stringify(records,null,2),'application/json');
+$('exportCsv').onclick=()=>{
+ const rows=[['fecha','kilometraje_km','importe_eur','precio_eur_litro','litros','consumo_tramo_l_100km']];
+ records.forEach(r=>rows.push([r.date,r.odo,r.paid,r.price,litres(r).toFixed(3),getConsumption(r)===null?'':getConsumption(r).toFixed(3)]));
+ const csv=rows.map(row=>row.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(';')).join('\r\n');
+ download('mi-gasolina.csv','\ufeff'+csv,'text/csv;charset=utf-8');
+};
+$('importBtn').onclick=()=>$('importFile').click();
+$('importFile').onchange=async e=>{
+ const file=e.target.files[0];if(!file)return;
+ try{
+ const incoming=JSON.parse(await file.text());if(!Array.isArray(incoming))throw Error();
+ if(!incoming.every(r=>r&&r.date&&Number.isFinite(+r.odo)&&+r.paid>0&&+r.price>0))throw Error();
+ if(!confirm(`Se van a importar ${incoming.length} registros. Los registros con el mismo identificador sustituirán a los actuales. ¿Continuar?`))return;
+ const map=new Map(records.map(r=>[r.id,r]));incoming.forEach(r=>{const x={id:r.id||`${Date.now()}-${Math.random().toString(36).slice(2,8)}`,date:String(r.date),odo:+r.odo,paid:+r.paid,price:+r.price};map.set(x.id,x);});
+ records=[...map.values()].sort((a,b)=>a.date.localeCompare(b.date)||a.odo-b.odo);save();render();alert('Importación completada.');
+ }catch(err){alert('No se pudo importar. Comprueba que sea una copia JSON válida de Mi Gasolina.');}
+ finally{$('importFile').value='';}
+};
+$('clearData').onclick=()=>{if(!records.length){alert('No hay datos que borrar.');return;}if(!confirm('Se eliminarán todos los repostajes guardados en este navegador. Haz una copia JSON antes si quieres conservarlos. ¿Continuar?'))return;localStorage.removeItem(KEY);records=[];resetForm();render();};
+function backupStatus(){ const el=$('backupStatus'); if(!el)return; const last=localStorage.getItem('mi-gasolina-last-backup'); el.textContent=last?`Última copia marcada: ${new Date(last).toLocaleString('es-ES')}`:'Aún no has marcado ninguna copia de seguridad.'; }
+const oldExport=$('exportJson').onclick; $('exportJson').onclick=()=>{oldExport();localStorage.setItem('mi-gasolina-last-backup',new Date().toISOString());backupStatus();};
+load();updatePreview();render();backupStatus();window.addEventListener('resize',drawChart);
+})();
+
+if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(()=>{})); }
+</script>
+</body>
+</html>
